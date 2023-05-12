@@ -1,66 +1,111 @@
 <?php defined( 'App' ) or die( 'BoidCMS' );
 /**
  *
- * XML Sitemap
+ * XML/TXT sitemap
  *
- * @package BoidCMS
- * @subpackage Sitemap
- * @author Shoaiyb Sysa
+ * @package Plugin_Sitemap
+ * @author Shuaib Yusuf Shuaib
  * @version 1.0.0
  */
 
 global $App;
-$App->set_action( 'install', 'sitemap_init' );
-$App->set_action( array( 'create_success', 'update_success', 'delete_success' ), 'sitemap_generate' );
+$App->set_action( 'install', 'sitemap_install' );
+$App->set_action( 'uninstall', 'sitemap_uninstall' );
 
 /**
- * Initiate Sitemap
+ * Initialize Sitemap, first time install
+ * @param string $plugin
  * @return void
  */
-function sitemap_init( string $plugin ): void {
+function sitemap_install( string $plugin ): void {
   global $App;
   if ( 'sitemap' === $plugin ) {
-    sitemap_generate();
+    $config = array();
+    $config[ 'type' ] = 'xml';
+    $App->set( $config, 'sitemap' );
   }
 }
 
 /**
- * Generate Sitemap
+ * Free database space, while uninstalled
+ * @param string $plugin
  * @return void
  */
-function sitemap_generate(): void {
+function sitemap_uninstall( string $plugin ): void {
   global $App;
-  $xml = sitemap_xml();
-  $file = $App->root( 'sitemap.xml' );
-  file_put_contents( $file, $xml );
+  if ( 'sitemap' === $plugin ) {
+    $App->unset( 'sitemap' );
+  }
+}
+
+/**
+ * Sitemap generate
+ * @return bool
+ */
+function sitemap_generate(): bool {
+  global $App;
+  $config = $App->get( 'sitemap' );
+  if ( 'xml' === $config[ 'type' ] ) {
+    $doc = sitemap_xml();
+    $file = $App->root( 'sitemap.xml' );
+    return ( bool ) $doc->save( $file );
+  }
+  $text = sitemap_txt();
+  $file = $App->root( 'sitemap.txt' );
+  return ( bool ) file_put_contents( $file, $text );
+}
+
+/**
+ * Sitemap pages
+ * @return array
+ */
+function sitemap_pages(): array {
+  global $App;
+  $pages = $App->data()[ 'pages' ];
+  foreach ( $pages as $slug => $p ) {
+    if ( '404' === $slug || ! $p[ 'pub' ] ) {
+      unset( $pages[ $slug ] );
+    }
+  }
+  return $pages;
 }
 
 /**
  * Sitemap XML
- * @return string
+ * @return DOMDocument
  */
-function sitemap_xml(): string {
+function sitemap_xml(): DOMDocument {
   global $App;
-  $pages = $App->data()[ 'pages' ];
-  $xml = '<?xml version="1.0" encoding="UTF-8"?>';
+  $pages = sitemap_pages();
+  $xml  = '<?xml version="1.0" encoding="UTF-8"?>';
   $xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">';
-  $xml .= '<url>';
-  $xml .= '<loc>' . $App->url() . '</loc>';
-  $xml .= '</url>';
+  $xml .= '  <url>';
+  $xml .= '    <loc>' . $App->url() . '</loc>';
+  $xml .= '  </url>';
   foreach ( $pages as $slug => $page ) {
-    if ( $App->page( 'pub', $slug ) ) {
-      $xml .= '<url>';
-      $xml .= '<loc>' . $App->url( $slug ) . '</loc>';
-      $xml .= '<lastmod>' . $App->page( 'date', $slug ) . '</lastmod>';
-      $xml .= '</url>';
-    }
+    $xml .= '<url>';
+    $xml .= '  <loc>' . $App->url( $slug ) . '</loc>';
+    $xml .= '  <lastmod>' . $page[ 'date' ] . '</lastmod>';
+    $xml .= '</url>';
   }
   $xml .= '</urlset>';
   $dom = new DOMDocument();
   $dom->formatOutput = true;
   $dom->loadXML( $xml );
-  $xml = $dom->saveXML();
-  $xml = trim( $xml );
   return $xml;
+}
+
+/**
+ * Sitemap TXT
+ * @return string
+ */
+function sitemap_txt(): string {
+  global $App;
+  $pages = sitemap_pages();
+  $sitemap  = $App->url() . PHP_EOL;
+  foreach ( $pages as $slug => $page ) {
+    $sitemap .= $App->url( $slug ) . PHP_EOL;
+  }
+  return $sitemap;
 }
 ?>
