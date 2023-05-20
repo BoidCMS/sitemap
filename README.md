@@ -1,5 +1,5 @@
 # Sitemap
-XML Sitemap plugin for BoidCMS.
+XML/TXT Sitemap generator plugin for BoidCMS.
 
 ## Install
 Download the zip file of the plugin on this repo.
